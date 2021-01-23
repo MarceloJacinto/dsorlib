@@ -19,7 +19,7 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-from numpy import array, zeros, abs
+from numpy import array, power, pi, sin, cos
 
 from dsorlib.vehicles.auv_rb_dynamics.abstract_auv_dynamics import AbstractAUVDynamics
 from dsorlib.vehicles.state.state import State
@@ -33,26 +33,12 @@ class PositiveBuoyancyAUVDynamics(AbstractAUVDynamics):
     Since the vehicle is to have positive buoyancy, then when the vehicle is completely
     submerged the volume of fluid displaced corresponds to the volume of the vehicle.
 
-    When the vehicle is at the surface (z=0.0), then is is assumed that the volume of
-    fluid displaced is such that W=B, where W is the gravity force (W = m * g) and B
-    is the buoyancy (B = fluid_density * g * volume_of_water).
-
-    Note: here we assume that the body frame of the coordinate system of the vehicle
-    is placed in the geometric center of the vehicle.
-
-    If the enter of buoyancy of the vehicle in z-axis is not the same as the geometric
-    center of the vehicle, that is taken into consideration.
-
-    When the vehicle is not fully submerged neither at z=0.0 (is somewhere in the middle),
-    the a linear relation is applied.
-
     This is important because this is the approximation used to calculate the volume of
     fluid displaced.
     """
 
     def __init__(self,
                  vehicle_volume: float,  # Vehicle volume in [m^3]
-                 vehicle_height: float,  # Height of the vehicle in [m]
                  m: float,  # Mass
                  inertia_tensor: array,  # The inertia tensor (a vector of 9 elements)
                  damping: array,  # The damping vector
@@ -60,51 +46,66 @@ class PositiveBuoyancyAUVDynamics(AbstractAUVDynamics):
                  added_mass: array,  # The added mass terms
                  g: float = 9.8,  # Gravity acceleration
                  fluid_density: float = 1000,  # Water/fluid density in [kg/m^3]
-                 rg: array = zeros(3),  # Center of gravity
                  sea_surface_z: float = 0.0  # The z-coordinate of the inertial frame where the sea surface is
                  ):
+
+        # Initialized the Super Class elements
+        super().__init__(m=m,
+                         inertia_tensor=inertia_tensor,
+                         damping=damping,
+                         quadratic_damping=quadratic_damping,
+                         added_mass=added_mass,
+                         g=g,
+                         fluid_density=fluid_density,
+                         sea_surface_z=sea_surface_z)
 
         # Calculate W (the gravity force)
         self.W = float(m * g)
 
-        # Compute the center of buoyancy offset
-        V_water_displaced = self.W / (fluid_density * g) # The volume of water displaced when W=B (gravity=buoyancy)
-        percentage_submerged = V_water_displaced / vehicle_volume   # The % [0, 1.0] of volume submerged when W=B
-        height_submerged = vehicle_height * percentage_submerged    # The height of the vehicle that is submerged in [m]
-        z_b = -(vehicle_height - height_submerged)  # Offset of the center of buoyancy of the vehicle with respect to the body frame
-
-        # The offset of the center of buyancy with respect to the body frame
-        rb = array([0.0, 0.0, z_b])
-
-        # Initialized the Super Class elements
-        super().__init__(m, inertia_tensor, damping, quadratic_damping, added_mass, g, fluid_density, rg, rb,
-                         sea_surface_z)
-
+        # Save the vehicle volume and approximate the vehicle for a sphere with a given radius
+        # that we are going to calculate according to the formula of the volume of a sphere
         self.vehicle_volume = float(vehicle_volume)  # Vehicle volume in [m^3]
-        self.vehicle_height = float(vehicle_height)  # Height of the vehicle in [m]
+        self.vehicle_radius = float(power(3 / (4 * pi) * self.vehicle_volume, 1 / 3))
 
-        # Volume displaced at (z=0.0) Assuming the vehicle has [phi, theta, psi] = [0.0, 0.0, 0.0]
-        # and assuming positive buoyancy and such that W=B -> volume_of_water = m / fluid_density
-        self.volume_of_water_at_zo = float(m / fluid_density)
+        # Compute the density of the vehicle
+        self.vehicle_density = float(self.m / self.vehicle_volume)
 
-        # The z coordinate in the inertial frame where the sea surface is located (usually is at z=0) but can be different
-        self.zo = float(sea_surface_z)
+    def compute_gravitational_forces(self, state: State):
+        """
+        :return: A array with 6 elements with the forces and torques resulting from
+                buoyancy and gravitational force
+        """
 
-        # Get the center of buoyancy of the vehicle (in the z-coordinate)
-        # with respect to the center of the coordinate frame of the body frame of the vehicle
-        zb = float(self.rb[2])
+        # Compute the Weight W=m*g
+        W = self.m * self.g
 
-        # Check if the center of buoyancy is in the body frame of the vehicle, otherwise throw an exception
-        if abs(zb) > self.vehicle_height / 2:
-            raise Exception("The center of buoyancy must be inside the vehicle frame!")
+        # Compute the Buoyancy B=fluid_density * g * fluid_displaced [m^3]
+        B = self.compute_buoyancy(state)
 
-        # Parameters for the linear model used for the calculation of fluid displaced as a function of depth
-        self.slope1 = ((self.m / self.fluid_density) - 0) / ((self.zo - self.rb[2]) - (-self.vehicle_height / 2))
-        self.b1 = (self.vehicle_height / 2) * self.slope1
+        # Get phi and theta angles from the state vectors
+        phi = float(state.eta_2[0])
+        theta = float(state.eta_2[1])
 
-        self.slope2 = (self.vehicle_volume - (self.m / self.fluid_density)) / (
-                (self.vehicle_height / 2) - (self.zo - self.rb[2]))
-        self.b2 = self.vehicle_volume - ((self.vehicle_height / 2) * self.slope2)
+        # Get the center of gravity of the AUV relative to the origin of {B}
+        xg = self.rg[0]
+        yg = self.rg[1]
+        zg = self.rg[2]
+
+        # Get the center of buoyancy of the AUV relative to the origin of {B}
+        self.rb = self.compute_buoyancy_center(state)
+        xb = self.rb[0]
+        yb = self.rb[1]
+        zb = self.rb[2]
+
+        # Calculate the Gravitational Force and return
+        g = array([(W - B) * sin(theta),
+                   -(W - B) * cos(theta) * sin(phi),
+                   -(W - B) * cos(theta) * cos(phi),
+                   -((yg * W) - (yb * B)) * cos(theta) * cos(phi) + ((zg * W) - (zb * B)) * cos(theta) * sin(phi),
+                   ((zg * W) - (zb * B)) * sin(theta) + ((xg * W) - (xb * B)) * cos(theta) * cos(phi),
+                   -((xg * W) - (xb * B)) * cos(theta) * sin(phi) - ((yg * W) - (yb * B)) * sin(theta)])
+
+        return g
 
     def compute_buoyancy(self, state: State):
         """
@@ -122,43 +123,88 @@ class PositiveBuoyancyAUVDynamics(AbstractAUVDynamics):
         # Compute the Buoyancy B=fluid_density * g * fluid_displaced [m^3]
         return self.fluid_density * self.g * fluid_displaced
 
-    def compute_volume_fluid_displaced(self, state: State):
-
-        #TODO
-        pass
-
-    def compute_volume_fluid_displaced2(self, state: State):
+    def compute_buoyancy_center(self, state: State):
         """
-        Compute the volume of fluid displaced by the vehicle
-
-        When the vehicle is fully submerged, the volume of fluid displaced corresponds
-        approximately to the volume of the vehicle in [m^3].
-
-        When the vehicle is partially submerged the volume of water displaced is
-        given by an approximately linear law, such that when the buoyancy center
-        of the vehicle is at zb=0, B=W -> therefore volume_displaced = m / fluid_density
-
+        Recall that the Buoyancy center is, by definition, center of mass of the volume of water
+        displaced by the vehicle. When the vehicle is fully submerged, this center of buoyancy corresponds
+        to the geometrical center of the vehicle (if the density of the vehicle is uniformely distributed)
+        which is the case here, since we are approximating our vehicle for a sphere
         :param state: The state of the vehicle
-        :return: A float with the volume of fluid displaced in [m^3]
+        :return: the buoyancy center defined with respect to the body reference frame
         """
 
-        z_o = float(self.zo)  # The z position of the water surface in inertial frame (in meters)
-        z_b = float(self.rb[2])  # The z position of the center of buoyancy relative to the body frame of the vehicle
-        # negative z_b means that the buoyancy center of the vehicle is above the vehicle's center of mass
-        z_M = state.eta_1[2]  # The z position of the center of mass of the vehicle
+        cm = state.eta_1[2]  # the z-coordinate of the center of mass of the sphere/vehicle
+        zo = self.sea_surface_z  # the z-coordinate of the sea-surface
+        r = self.vehicle_radius  # the radius of the sphere/vehicle
 
-        # If the vehicle is completely above water, then the volume of water displaced is zero
-        if z_M <= z_o - self.vehicle_height / 2:
-            return 0.0
-
-        # Volume if partially submerged
-        # Note that at the point where z_o = z_M + z_b we want W=B (force gravity = force buoyancy)
-        # therefore volume_displaced = mass / density_of_fluid when (z_o = z_M + z_b)
-        # for the other values make linear relations between 0.0, that point and full volume
-        elif (z_o - self.vehicle_height / 2) < z_M <= (z_o - z_b):
-            return self.b1 + self.slope1 * z_M
-        elif (z_o - z_b) < z_M <= (z_o + self.vehicle_height / 2):
-            return self.b2 + self.slope2 * z_M
-        # Volume if completely submerged
+        # Compute the height of the sphere submerged
+        if cm < zo - r:
+            # If the sphere/vehicle is completely above water the height of the sphere submerged is zero
+            h = 0
+        elif zo - r <= cm < zo:
+            # If the center of mass of the sphere/vehicle is above seawater level but the sphere
+            # is partially submerged, the height of the submerged region is given by:
+            h = r - (zo - cm)
+        elif cm >= zo < cm - r:
+            # If the center of mass of the sphere/vehicle is bellow seawater level
+            # with the sphere partially submerged, the height of the submerged region is given by:
+            h = r + (cm - zo)
         else:
-            return self.vehicle_volume
+            # If the sphere/vehicle is completely submerged, the height o the sphere that is submerged
+            # is the same as the radius of the vehicle/sphere * 2
+            h = r * 2
+
+        # Distance from the center of buoyancy to the center of mass in the z-axis
+        z_dist = (3.0 / 4.0) * power((2 * r - h), 2) / (3 * r - h)
+
+        # New buoyancy center (expressed in the body reference frame)
+        rb = array([0.0, 0.0, z_dist])
+
+        return rb
+
+    def compute_volume_of_sphere_cap(self, h: float):
+        """
+        This method computes the volume cap of the sphere (aka the robot) that is bellow
+        water, given h
+        :param h: The height of the cap of the sphere we want to compute the volume
+        :return: The volume of the cap of a sphere with a height h
+        """
+
+        return ((3 / 4 * power((h / self.vehicle_radius), 2)) - (
+                    1 / 4 * power(h / self.vehicle_radius, 3))) * 4 / 3 * pi * power(self.vehicle_radius, 3)
+
+    def compute_volume_fluid_displaced(self, state: State):
+        """
+        Method to compute the volume of fluid displaced given the state of vehicle,
+        more concretely the z-coordinate (expressed in the inertial frame) of the vehicle body frame location
+        :param state: The state of the vehicle
+        :return: the volume of water displaced by the vehicle
+        """
+
+        cm = state.eta_1[2]  # the z-coordinate of the center of mass of the sphere/vehicle
+        zo = self.sea_surface_z  # the z-coordinate of the sea-surface
+        r = self.vehicle_radius  # the radius of the sphere/vehicle
+        v_vehicle = self.vehicle_volume  # the volume of the vehicle
+
+        # If the vehicle is totally submerged in water,
+        # the volume of water displaced corresponds to the volume of
+        # the vehicle
+        if zo <= cm - r:
+            return v_vehicle
+
+        # If the vehicle is partially submerged
+        if cm - r < zo <= cm + r:
+
+            # Compute the height of the sphere cap that is above water
+            h = r - (zo - cm)
+
+            # Compute the volume of the sphere cap that is above water
+            vol_cap = self.compute_volume_of_sphere_cap(h)
+
+            # Compute the volume of the part that is underwater
+            return vol_cap
+
+        # If the vehicle is totally above water, the volume of water
+        # displaced is zero
+        else:
+            return 0.0

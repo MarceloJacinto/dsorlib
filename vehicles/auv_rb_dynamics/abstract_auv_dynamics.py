@@ -103,20 +103,15 @@ class AbstractAUVDynamics(ABC):
         self.M_inv = inv(self.M)
 
     @abstractmethod
-    def compute_buoyancy(self, state: State):
+    def compute_gravitational_forces(self, state: State):
         """
-        Abstract method that should be implemented by a class that inherits it
+        Abstract method that should be implemented by a class that inherits it.
+        This calculation can be more or less complicated depending on the model
+        of the vehicle
 
-        This method is not implemented and the buoyancy depends on the vehicle, its shape
-        and the approximations the authors are willing to make in simulation
-
-        Recall that Buoyancy is given by:
-
-        B=fluid_density * g * fluid_displaced [m^3]
-
-        :return: A float B with the buoyancy of the vehicle
+        :return: A array with 6 elements with the forces and torques resulting from
+                buoyancy and gravitational force
         """
-        pass
 
     def compute_coriolis_matrix(self, state: State):
         """
@@ -148,39 +143,3 @@ class AbstractAUVDynamics(ABC):
 
         # Compute the damping matrix according to the formulas
         return self.Dl + diag(dot(self.Dq, abs(v_vector)))
-
-    def compute_gravitational_forces(self, state: State):
-        """
-        :return: A array with 6 elements with the forces and torques resulting from
-                buoyancy and gravitational force
-        """
-
-        # Compute the Weight W=m*g
-        W = self.m * self.g
-
-        # Compute the Buoyancy B=fluid_density * g * fluid_displaced [m^3]
-        B = self.compute_buoyancy(state)
-
-        # Get phi and theta angles from the state vectors
-        phi = float(state.eta_2[0])
-        theta = float(state.eta_2[1])
-
-        # Get the center of gravity of the AUV relative to the origin of {B}
-        xg = self.rg[0]
-        yg = self.rg[1]
-        zg = self.rg[2]
-
-        # Get the center of buoyancy of the AUV relative to the origin of {B}
-        xb = self.rb[0]
-        yb = self.rb[1]
-        zb = self.rb[2]
-
-        # Calculate the Gravitational Force and return
-        g = array([(W - B) * sin(theta),
-                   -(W - B) * cos(theta) * sin(phi),
-                   -(W - B) * cos(theta) * cos(phi),
-                   -((yg * W) - (yb * B)) * cos(theta) * cos(phi) + ((zg * W) - (zb * B)) * cos(theta) * sin(phi),
-                   ((zg * W) - (zb * B)) * sin(theta) + ((xg * W) - (xb * B)) * cos(theta) * cos(phi),
-                   -((xg * W) - (xb * B)) * cos(theta) * sin(phi) - ((yg * W) - (yb * B)) * sin(theta)])
-
-        return g
