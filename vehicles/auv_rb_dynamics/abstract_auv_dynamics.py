@@ -20,7 +20,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from abc import ABC, abstractmethod
-from numpy import array, zeros, eye, block, diag, sin, cos, dot, abs, concatenate
+from numpy import array, zeros, eye, block, diag, dot, abs, concatenate
 from numpy.linalg import inv
 
 from dsorlib.utils import Smtrx
@@ -60,7 +60,7 @@ class AbstractAUVDynamics(ABC):
         # Save the tensor of inertia
         self.inertia_tensor = array(inertia_tensor)
 
-        # Check if damping is given as a vector of 3 terms (diagonal matrix)
+        # Check if inertia tensor is given as a vector of 3 terms (diagonal matrix)
         # or a vector with 9 terms (the complete matrix which might be non-diagonal)
         if self.inertia_tensor.size == 3:
             self.inertia_matrix = diag(self.inertia_tensor).reshape((3, 3))

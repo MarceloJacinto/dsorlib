@@ -19,8 +19,52 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+from dsorlib.vehicles.state.state import State
 from numpy import array, sin, cos, tan, maximum, minimum, pi
 
+
+def create_state_history(state: State):
+    """
+    Creates a dictionary to save the states together with time
+    :param state: The state of the vehicle
+    :param time: The time instant (in seconds)
+    :return: A dictionary with the history with the initial state
+    """
+
+    history = {'x': [state.eta_1[0]], 'y': [state.eta_1[1]], 'z': [state.eta_1[2]], 'roll': [state.eta_2[0]],
+               'pitch': [state.eta_2[1]], 'yaw': [state.eta_2[2]], 'u': [state.v_1[0]], 'v': [state.v_1[1]],
+               'w': [state.v_1[2]], 'p': [state.v_2[0]], 'q': [state.v_2[1]], 'r': [state.v_2[2]], 'time': [0.0]}
+
+    return history
+
+
+def save_state_history(history: {}, state: State, time: float):
+    """
+    :param history: The dictionary with the history of the state
+    :param state: The state of the vehicle
+    :param time: The time instant (in seconds)
+    :return: The dictionary with the history
+    """
+
+    history['x'].append(state.eta_1[0])
+    history['y'].append(state.eta_1[1])
+    history['z'].append(state.eta_1[2])
+
+    history['roll'].append(state.eta_2[0])
+    history['pitch'].append(state.eta_2[1])
+    history['yaw'].append(state.eta_2[2])
+
+    history['u'].append(state.v_1[0])
+    history['v'].append(state.v_1[1])
+    history['w'].append(state.v_1[2])
+
+    history['p'].append(state.v_2[0])
+    history['q'].append(state.v_2[1])
+    history['r'].append(state.v_2[2])
+
+    history['time'].append(time)
+
+    return history
 
 def integrate(x_dot, x, dt):
     """
