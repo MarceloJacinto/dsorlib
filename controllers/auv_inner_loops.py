@@ -38,7 +38,7 @@ class surge_PI:
         :param Xu_dot: The added mass in surge
         :param Xuu: The quadratic damping in surge
 
-        :param surge_gains: The (kp, ki) PI gains
+        :param surge_gains: The (kp, Ti) PI gains
         :param dt: The sampling time used (in seconds)
         """
 
@@ -49,12 +49,12 @@ class surge_PI:
         self._Xuu = Xuu  # The quadratic damping in surge
 
         # The values for the Kp and Ki
-        self._kp = surge_gains[0]
-        self._ki = surge_gains[1]
+        self._Kp = surge_gains[0]
+        self._Ki = surge_gains[1]
 
         # Surge controller gains and corresponding PI controller
         self._mu = m - Xu_dot  # Total mass in surge = mass - "added mass"
-        self._surge_pid = PID(Kp=self._kp, Ki=self._ki, Kd=0.0, dt=dt, is_angle=False)
+        self._surge_pid = PID(Kp=self._Kp, Ki=self._Ki, Kd=0.0, dt=dt, is_angle=False)
 
     def follow_surge(self, desired_surge: float, state: State):
         """
@@ -71,7 +71,8 @@ class surge_PI:
         feed_forward = self._compute_surge_feed_forward(surge_speed)
 
         # Compute the feedback gain from the PI controller
-        feed_back = self._surge_pid(reference_p=desired_surge, real_p=surge_speed)
+        self._surge_pid.reference = float(desired_surge)
+        feed_back = self._surge_pid(sys_output=surge_speed)
 
         return feed_forward + (self._mu * feed_back)
 
@@ -112,12 +113,12 @@ class yaw_PD:
         self._Nrr = Nrr  # The quadratic damping about z-axis
 
         # The values for the Kp and Ki
-        self._kp = yaw_gains[0]
-        self._kd = yaw_gains[1]
+        self._Kp = yaw_gains[0]
+        self._Kd = yaw_gains[1]
 
         # Yaw controller gains
         self._mr = Iz - Nr_dot  # The total inertia in yaw_rate = Inertia - "added inertia"
-        self._yaw_pid = PID(Kp=self._kp, Kd=self._kd, Ki=0.0, dt=dt, is_angle=True)
+        self._yaw_pid = PID(Kp=self._Kp, Kd=self._Kd, Ki=0.0, dt=dt, is_angle=True)
 
     def follow_yaw(self, desired_yaw: float, state: State):
         """
@@ -135,7 +136,8 @@ class yaw_PD:
         feed_forward = self._compute_yaw_feed_forward(yaw_rate)
 
         # Compute the feedback gain from the PD controller
-        feed_back = self._yaw_pid(reference_p=desired_yaw, real_p=yaw, reference_d=0.0, real_d=yaw_rate)
+        self._yaw_pid.reference = float(desired_yaw)
+        feed_back = self._yaw_pid(sys_output=yaw, sys_output_derivative=yaw_rate)
 
         return feed_forward + (self._mr * feed_back)
 
@@ -176,12 +178,12 @@ class yaw_rate_PI:
         self._Nrr = Nrr  # The quadratic damping about z-axis
 
         # The values for the Kp and Ki
-        self._kp = yaw_rate_gains[0]
-        self._ki = yaw_rate_gains[1]
+        self._Kp = yaw_rate_gains[0]
+        self._Ki = yaw_rate_gains[1]
 
         # Yaw controller gains
         self._mr = Iz - Nr_dot  # The total inertia in yaw_rate = Inertia - "added inertia"
-        self._yaw_pid = PID(Kp=self._kp, Ki=self._ki, Kd=0.0, dt=dt, is_angle=False)
+        self._yaw_pid = PID(Kp=self._Kp, Ki=self._Ki, Kd=0.0, dt=dt, is_angle=False)
 
     def follow_yaw_rate(self, desired_yaw_rate: float, state: State):
         """
@@ -192,14 +194,14 @@ class yaw_rate_PI:
         """
 
         # Get the current yaw and yaw_rate velocity
-        yaw = state.eta_2[2]
         yaw_rate = state.v_2[2]
 
         # Compute the forward gain to apply
         feed_forward = self._compute_yaw_feed_forward(yaw_rate)
 
         # Compute the feedback gain from the PD controller
-        feed_back = self._yaw_pid(reference_p=desired_yaw_rate, real_p=yaw)
+        self._yaw_pid.reference = float(desired_yaw_rate)
+        feed_back = self._yaw_pid(sys_output=yaw_rate)
 
         return feed_forward + (self._mr * feed_back)
 

@@ -28,33 +28,40 @@ class PID:
     PID class implements a simple PID controller
     """
 
-    def __init__(self, Kp: float=0.0, Td: float=0.0, Ti: float=0.0,
-                 dt:float=0.01,
-                 reference: float=0.0,
+    def __init__(self, Kp: float = 0.0, Kd: float = 0.0, Ki: float = 0.0,
+                 dt: float = 0.01,
+                 reference: float = 0.0,
                  output_bounds=(None, None),
                  is_angle=False):
         """
         Instantiates an instance of a PID controller
         :param Kp: The proportional gain
-        :param Td: The derivative gain
-        :param Ti: The integral gain
+        :param Kd: The derivative gain
+        :param Ki: The integral gain
         :param dt: The time interval (in seconds)
         :param output_bounds: The (lower, upper) limits for the output control signal
         :param is_angle: A boolean to check whether the reference is an angle (to wrap the error or not)
+        # TODO - test the anti-windup signal in the integral part
         """
 
         # The sampling time expressed in [s]
         self._dt: float = float(dt)
 
         # Save the gains for the PID
+        if Kp < 0 or Ki < 0 or Kd < 0:
+            raise ValueError('The PID constants must be >=0')
+
         self.Kp: float = float(Kp)
-        self.Ti: float = float(Ti)
-        self.Td: float = float(Td)
+        self.Ki: float = float(Ki)
+        self.Kd: float = float(Kd)
 
         # Save the regulated level to maintain (reference to follow)
         self.reference: float = float(reference)
 
         # The lower and upper bounds of the control signal
+        if None not in output_bounds and output_bounds[0] > output_bounds[1]:
+            raise ValueError('Lower bound must be lower than upper bound')
+
         self._output_min = output_bounds[0]
         self._output_max = output_bounds[1]
 
@@ -62,10 +69,9 @@ class PID:
         self._is_angle: bool = is_angle
 
         # Auxiliary variable for the integral and anti-windup mechanism
-        # TODO - check if the _prev_output = 0.0 does not raise problems for derivative in the initial second
         # if the system varies quickly
-        self._prev_output: float = 0.0 # The value on the previous iteration for the derivative
-        self._integral_error: float = 0.0   # The integral accumulated error on the previous iteration
+        self._prev_output: float = 0.0  # The value on the previous iteration for the derivative
+        self._integral_error: float = 0.0  # The integral accumulated error on the previous iteration
         self._anti_windup: float = 0.0  # The anti-windup gain
 
     def __call__(self, sys_output: float, sys_output_derivative=None):
@@ -82,7 +88,7 @@ class PID:
         """
 
         # Compute the proportional error
-        error = sys_output - self._reference
+        error = sys_output - self.reference
 
         # Check if the error is an angle (the error between 2 angles cannot ever be superior to pi)
         if self._is_angle:
@@ -92,7 +98,8 @@ class PID:
                 error += (2 * pi)
 
         # Compute the integral error-anti_windup
-        integral_error = integrate(x_dot=error - self._anti_windup, x=self._integral_error, dt=self._dt)
+        # self._anti_windup
+        integral_error = integrate(x_dot=error-self._anti_windup, x=self._integral_error, dt=self._dt)
 
         # Update the integral error for the next iteration
         self._integral_error = integral_error
@@ -108,23 +115,25 @@ class PID:
         self._prev_output = sys_output
 
         # Compute the control law
-        output = -self.Kp * (error + (self.Td * derivative_error) + (1.0 / self.Ti * integral_error))
+        output = -(self.Kp * error) - (self.Kd * derivative_error) - (self.Ki * integral_error)
 
         # Saturate the output between a minimum and maximum value
         # and compute the value for the anti-windup system to feedback
-        if output < self._output_min:
+        if self._output_min is not None and output < self._output_min:
             self._anti_windup = output - self._output_min
             output = self._output_min
-        elif output > self._output_max:
+            print("Executou")
+        elif self._output_max is not None and output > self._output_max:
             self._anti_windup = output - self._output_min
             output = self._output_max
+            print("Executou")
 
         return output
 
     def __repr__(self):
         return (
             '{self.__class__.__name__}('
-            'Kp={self._Kp!r}, Ti={self._Ti!r}, Td={self._Td!r}, '
+            'Kp={self._Kp!r}, Ki={self._Ki!r}, Td={self._Kd!r}, '
             'sample_time={self._dt!r}'')').format(self=self)
 
     def reset(self):
@@ -157,20 +166,20 @@ class PID:
         """
         Returns the controller gains used
         and the gain_pid which is the gain to which the controller output is multiplied by
-        :return: (Kp, Ti, Td)
+        :return: (Kp, Ki, Kd)
         """
-        return self._Kp, self._Ti, self._Td
+        return self._Kp, self._Ki, self._Kd
 
     @gains.setter
     def gains(self, gains):
         """
-        Sets the controller gains used (Kp, Ti, Td)
+        Sets the controller gains used (Kp, Ki, Kd)
         where Kp-proportional gain, Ki-integral gain and Kd-derivative gain
         """
-        if None in gains or (gains[0]<0 and gains[1]<0 and gains[2]<0):
+        if None in gains or (gains[0] < 0 and gains[1] < 0 and gains[2] < 0):
             raise ValueError('The gains must all be positive floats')
 
-        self._Kp, self._Ti, self._Td = gains
+        self._Kp, self._Ki, self._Kd = gains
 
     @property
     def is_angle(self):
