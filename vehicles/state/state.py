@@ -31,20 +31,21 @@ class State:
                  eta_1: array = array([0.0, 0.0, 0.0]),
                  eta_2: array = array([0.0, 0.0, 0.0]),
                  v_1: array = array([0.0, 0.0, 0.0]),
-                 v_2: array = array([0.0, 0.0, 0.0])):
+                 v_2: array = array([0.0, 0.0, 0.0]),
+                 ):
         """
         Instantiate a State Object
-        eta_1 = (x, y, z) - position of the origin of the Body Frame {B} expressed in the Inertial Frame {U}
-        eta_2 = (roll, pitch, yaw) - orientation of the origin of the Body Frame {B} with respect to the Inertial Frame {U}
-        v_1 = (u, v, w) - linear velocity of the origin of the Body Frame {B} with respect to the Inertial Frame {U} expressed in {B}
-        v_2 = (p, q, r) - angular velocity of the origin of the Body Frame {B} with respect to the Inertial Frame {U} expressed in {B}
+        :param eta_1 = (x, y, z) - position of the origin of the Body Frame {B} expressed in the Inertial Frame {U}
+        :param eta_2 = (roll, pitch, yaw) - orientation of the origin of the Body Frame {B} with respect to the Inertial Frame {U}
+        :param v_1 = (u, v, w) - linear velocity of the origin of the Body Frame {B} with respect to the Inertial Frame {U} expressed in {B}
+        :param v_2 = (p, q, r) - angular velocity of the origin of the Body Frame {B} with respect to the Inertial Frame {U} expressed in {B}
         """
 
         # Assign the values and validate the shape of each input
-        self.eta_1 = array(eta_1).reshape((3,))
-        self.eta_2 = array(eta_2).reshape((3,))
-        self.v_1 = array(v_1).reshape((3,))
-        self.v_2 = array(v_2).reshape((3,))
+        self.eta_1 = array(eta_1).reshape(3)
+        self.eta_2 = array(eta_2).reshape(3)
+        self.v_1 = array(v_1).reshape(3)
+        self.v_2 = array(v_2).reshape(3)
 
     def __str__(self):
         """

@@ -25,7 +25,7 @@ from dsorlib.vehicles.auv_rb_dynamics.abstract_auv_dynamics import AbstractAUVDy
 from dsorlib.vehicles.state.state import State
 
 
-class PositiveBuoyancyAUVDynamics(AbstractAUVDynamics):
+class SphereAUVDynamics(AbstractAUVDynamics):
     """
     This class implements the AUV dynamics for a vehicle with POSITIVE BUOYANCY
 
