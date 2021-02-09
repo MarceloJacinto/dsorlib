@@ -22,7 +22,7 @@
 from dsorlib.vehicles.abstract_vehicle import AbstractVehicle
 from dsorlib.vehicles.thrusters.abstract_thruster_model import AbstractThrusterModel
 from dsorlib.vehicles.uav_rb_dynamics.quadrotor_dynamics import QuadrotorDynamics
-from dsorlib.vehicles.state.state import State
+from dsorlib.vehicles.state.quadrotorstate import QuadrotorState
 from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U
 
 from numpy import array, cross, dot
@@ -33,7 +33,7 @@ class QuadrotorVehicle(AbstractVehicle):
     def __init__(self,
                  rigid_body_dynamics: QuadrotorDynamics,
                  thruster_dynamics: AbstractThrusterModel,
-                 initial_state: State,
+                 initial_state: QuadrotorState,
                  dt: float = 0.01,
                  input_is_thrusts: bool = False):
         """
@@ -53,7 +53,7 @@ class QuadrotorVehicle(AbstractVehicle):
         super().__init__(initial_state, dt)
 
         # Create a initial state dot to save the derivatives of each state as they are computed
-        self.state_dot = State()
+        self.state_dot = QuadrotorState()
 
         # Setup the rigid body dynamics for the vehicles
         # This object is not passed as copy so that if we want multiple AUV sharing the same rigid body dynamics
@@ -86,28 +86,30 @@ class QuadrotorVehicle(AbstractVehicle):
 
         # Check whether the forces vector is a generalized vector of desired forces and torques
         # to apply to the rigid body or already a vector of thrusts to apply to the vehicle thrusters
-        if not self.input_is_thrusts:
+        #if not self.input_is_thrusts:
 
             # Convert the desired general forces applied in the rigid body to the desired thrusts
             # and check if we are getting the correct size
-            thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
-        else:
+        #    thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
+        #else:
             # The "forces" vector received is not general forces but rather thrusts applied directly to the motors
             # and check if we are getting as many desired thrust as the number of thrusters in our thruster model
-            thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
+        #    thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
 
         # --------------------------------------------------------
         # -- Propagate the desired thrust by the thruster model --
         # --------------------------------------------------------
 
         # Convert the thruster desired input in Newton [N] to another scale (for example %RPM)
-        thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
+        #thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
         # Give the desired input to the thrusters and get the output in the same unit
-        thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
+        #thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
         # Convert back the output of the thrusters (for example in %RPM) to Newton [N]
-        thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
+        #thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
         # Convert the output of the thrusters to generalized vector of forces and torques in the rigid body
-        applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
+        #applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
+
+        applied_forces = array(desired_input)
 
         # --------------------------------------------
         # -- Compute the dynamics of the rigid body --
@@ -123,6 +125,9 @@ class QuadrotorVehicle(AbstractVehicle):
         # -- Compute the kinematics of the rigid body --
         # -----------------------------------------------
         self.state_dot.eta_1, self.state_dot.eta_2 = self.kinematics()
+
+        # Save the [x_dot, y_dot, v_dot] vector (preferred in quadrotors)
+        self.state.eta_1_dot = self.state_dot.eta_1
 
         # Integrate the kinematics
         self.state.eta_1 = integrate(x_dot=self.state_dot.eta_1, x=self.state.eta_1, dt=self.dt)
@@ -179,7 +184,7 @@ class QuadrotorVehicle(AbstractVehicle):
         gravity = array([0.0, 0.0, self.rb_dynamics.m * self.rb_dynamics.g])
 
         # Compute the translational dynamics in the body frame of reference
-        v1_dot = (1.0 / self.rb_dynamics.m) * (dot(Rbu, gravity) + forces - coriolis)
+        v1_dot = (1.0 / self.rb_dynamics.m) * (forces + dot(Rbu, gravity) - coriolis)
 
         return v1_dot
 
