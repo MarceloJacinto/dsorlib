@@ -21,15 +21,16 @@
 #  SOFTWARE.
 import numpy as np
 from dsorlib.paths.pathSection import PathSection
+from dsorlib.utils import wrapAngle
 
 
-class ArcSection(PathSection):
+class ArcSection2D(PathSection):
     """
     Class ArcSection extends PathSection
     This path parameterizes an arc with a parameter s that varies from 0 to 1
     """
 
-    def __init__(self, xs: float, ys: float, xc: float, yc: float, xe: float, ye: float, direction=1.0):
+    def __init__(self, xs: float, ys: float, xc: float, yc: float, xe: float, ye: float, z: float = 0.0, direction=1.0):
         """
         Constructor for an ArcSection
         Parameters for arc constructions are the coordinates of the starting point (xs, ys), the coordinates
@@ -43,21 +44,22 @@ class ArcSection(PathSection):
         if you create an arc with more than 2*pi
         """
         super()
-        self._xs = xs                           # Start point of the path
+        self._xs = xs  # Start point of the path
         self._ys = ys
-        self._xc = xc                           # Center of the path
+        self._xc = xc  # Center of the path
         self._yc = yc
-        self._xe = xe                           # End point of the path
+        self._xe = xe  # End point of the path
         self._ye = ye
-        self._direction = direction             # Direction the arc should flow
-        
+        self._direction = direction  # Direction the arc should flow
+        self._z = z  # A 2D arc in a 2D plane at height z
+
         pc = np.array([self._yc, self._xc])
         ps = np.array([self._ys, self._xs])
-        self._R = np.linalg.norm(pc - ps)       # Radius of the arc
+        self._R = np.linalg.norm(pc - ps)  # Radius of the arc
 
     def curvature(self, s: float) -> float:
-        return float(1/self._R)
-    
+        return float(1 / self._R)
+
     def angle(self, s: float) -> float:
         """
         @Override
@@ -70,73 +72,76 @@ class ArcSection(PathSection):
         ps = np.array([self._ys, self._xs])
         pe = np.array([self._ye, self._xe])
 
-        phi_0 = np.arctan2(ps[0] - pc[0], ps[1] - pc[1])        # The angle in the initial point of the arc
-        phi_final = np.arctan2(pe[0] - pc[0], pe[1] - pc[1])    # The angle in the final point of the arc
+        phi_0 = np.arctan2(ps[0] - pc[0], ps[1] - pc[1])  # The angle in the initial point of the arc
+        phi_final = np.arctan2(pe[0] - pc[0], pe[1] - pc[1])  # The angle in the final point of the arc
 
         # Normalization factor so that s can vary between 0 and 1
         if ps[0] == pe[0] and ps[1] == pe[1]:
-            factor = 2 * np.pi      # We want a full circle
+            factor = 2 * np.pi  # We want a full circle
         else:
             if self._direction == 1.0 and phi_final < phi_0:
-                factor = 2*np.pi - (phi_0 - phi_final)
+                factor = 2 * np.pi - (phi_0 - phi_final)
             elif self._direction == -1.0 and phi_final > phi_0:
-                factor = 2*np.pi - (phi_final - phi_0)
+                factor = 2 * np.pi - (phi_final - phi_0)
             elif self._direction == 1.0 and phi_final > phi_0:
                 factor = phi_final - phi_0
             else:
                 factor = phi_0 - phi_final
-        
+
         # Wrap the phi_0 angle between -pi and pi so that the curve is well parameterized
-        phi_0 = Utils.wrapAngle(phi_0)
+        phi_0 = wrapAngle(phi_0)
 
-        #Since s is normalized between 0 and 1, then calculate X and Y accordingly
-        aux_angle = Utils.wrapAngle(phi_0 + self._direction * s * factor)
+        # Since s is normalized between 0 and 1, then calculate X and Y accordingly
+        aux_angle = wrapAngle(phi_0 + self._direction * s * factor)
 
-        pd_dot_ = self._direction * np.array([np.cos(aux_angle), -np.sin(aux_angle)]);
+        pd_dot_ = self._direction * np.array([np.cos(aux_angle), -np.sin(aux_angle)])
         psid_ = np.arctan2(pd_dot_[0], pd_dot_[1])
         return psid_
 
-    def getXYFromS(self, s: float) -> (float, float):
+    def getXYZFromS(self, s: float) -> (float, float):
         """
         @Override
         Returns the X, Y position in the inertial frame of the point parameterized by s.
         If s > 1 the return will be the equivalent for s = 1
         If s < 0 the return will be the equivalent for s = 0
         """
+
+        # Check if s is inside bounds
         if s > 1:
             s = 1
         elif s < 0:
             s = 0
-        
+
+        # Define the start, end and center coordinates for the arc
         pc = np.array([self._yc, self._xc])
         ps = np.array([self._ys, self._xs])
         pe = np.array([self._ye, self._xe])
-        
-        phi_0 = np.arctan2(ps[0] - pc[0], ps[1] - pc[1])      #Inital angle
-        phi_final = np.arctan2(pe[0] - pc[0], pe[1] - pc[1])  #Final angle
+
+        phi_0 = np.arctan2(ps[0] - pc[0], ps[1] - pc[1])  # Inital angle
+        phi_final = np.arctan2(pe[0] - pc[0], pe[1] - pc[1])  # Final angle
 
         # Normalization factor so that s can vary between 0 and 1
         if ps[0] == pe[0] and ps[1] == pe[1]:
-            factor = 2 * np.pi      # We want a full circle
+            factor = 2 * np.pi  # We want a full circle
         else:
             if self._direction == 1.0 and phi_final < phi_0:
-                factor = 2*np.pi - (phi_0 - phi_final)
+                factor = 2 * np.pi - (phi_0 - phi_final)
             elif self._direction == -1.0 and phi_final > phi_0:
-                factor = 2*np.pi - (phi_final - phi_0)
+                factor = 2 * np.pi - (phi_final - phi_0)
             elif self._direction == 1.0 and phi_final > phi_0:
                 factor = phi_final - phi_0
             else:
                 factor = phi_0 - phi_final
-        
+
         # Wrap the phi_0 angle between -pi and pi so that the curve is well parameterized
-        phi_0 = Utils.wrapAngle(phi_0)
-        #Since s is normalized between 0 and 1, then calculate X and Y accordingly
-        aux_angle = Utils.wrapAngle(phi_0 + self._direction * s * factor)
-        pd_ = pc + self._R * np.array([np.sin(aux_angle), np.cos(aux_angle)]);
-        
+        phi_0 = wrapAngle(phi_0)
+        # Since s is normalized between 0 and 1, then calculate X and Y accordingly
+        aux_angle = wrapAngle(phi_0 + self._direction * s * factor)
+        pd_ = pc + self._R * np.array([np.sin(aux_angle), np.cos(aux_angle)])
+
         X = pd_[1]
         Y = pd_[0]
-        return (X, Y)
+        return X, Y, self._z
 
     def __str__(self):
         """
@@ -144,4 +149,5 @@ class ArcSection(PathSection):
         Returns a string with the information the segment is an Arc 
         and the initial, center and final coordinates of the arc in the inertial frame and the direction
         """
-        return "Line[ xs=" + str(self._xs) + ", ys=" + str(self._ys) + ", xc=" + str(self._xc) + ", yc=" + str(self._yc) + ", xe=" + str(self._xe) + ", ye=" + str(self._ye) + ", direction=" + str(self._direction) + "]"
+        return "Line[ xs=" + str(self._xs) + ", ys=" + str(self._ys) + ", xc=" + str(self._xc) + ", yc=" + str(
+            self._yc) + ", xe=" + str(self._xe) + ", ye=" + str(self._ye) + ", direction=" + str(self._direction) + "]"

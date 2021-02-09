@@ -87,11 +87,22 @@ class QuadrotorInnerLoop:
     def att_controller(self, angle_desired: array, desired_state: DesiredState, state: State):
 
         # Check if the desired angles are to big and clip them between -10 and 10 deg
-        angle_desired[0:2] = clip(angle_desired[0:2], -0.175, 0.175)
+        angle_desired[0:2] = clip(angle_desired[0:2], -0.17, 0.17)
 
         # Compute the error between the desired angles and the real angles
         angle_error = array(state.eta_2) - angle_desired
         angle_vel_error = array(state.v_2) - array([0.0, 0.0, desired_state.yaw_rate])
+
+        # Wrap the angle error between -pi and pi
+        while angle_error[0] > pi:
+            angle_error[0] -= 2*pi
+        while angle_error[0] < -pi:
+            angle_error[0] += 2*pi
+
+        while angle_error[1] > pi:
+            angle_error[1] -= 2*pi
+        while angle_error[1] < -pi:
+            angle_error[1] += 2*pi
 
         # Compute the output
         output = -(self.k1 * angle_error) -(self.k2 * angle_vel_error)

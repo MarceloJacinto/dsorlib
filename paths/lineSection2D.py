@@ -23,13 +23,14 @@ from dsorlib.paths.pathSection import PathSection
 import numpy as np
 
 
-class LineSection(PathSection):
+class LineSection2D(PathSection):
     """
-    Class LineSection extends PathSection
+    Class LineSection2D extends PathSection
     This path parameterizes a line with a parameter s that varies from 0 to 1
+    This line is inside a 2D plane
     """
 
-    def __init__(self, xs: float, ys: float, xe: float, ye: float):
+    def __init__(self, xs: float, ys: float, xe: float, ye: float, z: float=0.0):
         """
         Constructor for a LineSection
         Parameters for line constructions are the coordinates of the starting point (xs, ys)
@@ -40,6 +41,7 @@ class LineSection(PathSection):
         self._ys = ys
         self._xe = xe  # End point of the path
         self._ye = ye
+        self._z = z
 
     def curvature(self, s: float) -> float:
         """
@@ -57,7 +59,7 @@ class LineSection(PathSection):
         """
         return np.arctan2((self._ye - self._ys), (self._xe - self._xs))
 
-    def getXYFromS(self, s: float) -> (float, float):
+    def getXYZFromS(self, s: float) -> (float, float):
         """
         @Override
         Returns the X, Y position in the inertial frame of the point parameterized by s.
@@ -67,11 +69,11 @@ class LineSection(PathSection):
         if 0 <= s <= 1:
             X = ((self._xe - self._xs) * s) + self._xs
             Y = ((self._ye - self._ys) * s) + self._ys
-            return (X, Y)
+            return X, Y, self._z
         elif s < 0:
-            return self._xs, self._ys
+            return self._xs, self._ys, self._z
         else:
-            return self._xe, self._ye
+            return self._xe, self._ye, self._z
 
     def __str__(self):
         """

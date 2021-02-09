@@ -45,7 +45,7 @@ class PathSection(ABC):
         pass
 
     @abstractmethod
-    def getXYFromS(self, s: float) -> (float, float):
+    def getXYZFromS(self, s: float) -> (float, float):
         """
         Abstract method that given the parameterization of the path, s, varying from 0 to 1
         should return the X, Y coordinates in the inertial frame of that point in the path
@@ -55,17 +55,21 @@ class PathSection(ABC):
     def getPathSectionPoints(self, decimation=0.01) -> ([], []):
         """
         Method that given the decimation (default=0.01), gives ([x_coord],[y_coord]) of points
-        making the path. Very usefull for ploting :)
+        making the path.
+
+        Very useful for plotting
         """
         s = 0
         pathPointsX = []
         pathPointsY = []
+        pathPointsZ = []
         while s <= 1:
-            x, y = self.getXYFromS(s)
+            x, y, z = self.getXYZFromS(s)
             pathPointsX.append(x)
             pathPointsY.append(y)
+            pathPointsZ.append(z)
             s += decimation
-        return (pathPointsX, pathPointsY)
+        return pathPointsX, pathPointsY, pathPointsZ
 
     @abstractmethod
     def __str__(self):

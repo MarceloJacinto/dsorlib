@@ -86,30 +86,30 @@ class QuadrotorVehicle(AbstractVehicle):
 
         # Check whether the forces vector is a generalized vector of desired forces and torques
         # to apply to the rigid body or already a vector of thrusts to apply to the vehicle thrusters
-        #if not self.input_is_thrusts:
+        if not self.input_is_thrusts:
 
             # Convert the desired general forces applied in the rigid body to the desired thrusts
             # and check if we are getting the correct size
-        #    thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
-        #else:
+            thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
+        else:
             # The "forces" vector received is not general forces but rather thrusts applied directly to the motors
             # and check if we are getting as many desired thrust as the number of thrusters in our thruster model
-        #    thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
+            thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
 
         # --------------------------------------------------------
         # -- Propagate the desired thrust by the thruster model --
         # --------------------------------------------------------
 
         # Convert the thruster desired input in Newton [N] to another scale (for example %RPM)
-        #thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
+        thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
         # Give the desired input to the thrusters and get the output in the same unit
-        #thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
+        thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
         # Convert back the output of the thrusters (for example in %RPM) to Newton [N]
-        #thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
+        thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
         # Convert the output of the thrusters to generalized vector of forces and torques in the rigid body
-        #applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
+        applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
 
-        applied_forces = array(desired_input)
+        #applied_forces = array(desired_input)
 
         # --------------------------------------------
         # -- Compute the dynamics of the rigid body --
