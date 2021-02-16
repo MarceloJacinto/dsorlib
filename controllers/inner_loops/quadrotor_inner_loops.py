@@ -1,110 +1,124 @@
-from numpy import array, dot, cos, sin, arcsin, arctan2, pi, power, sqrt, clip
-from numpy.linalg import norm, inv
+#  MIT License
+#
+#  Copyright (c) 2021 Marcelo Jacinto
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
+from numpy import ndarray, array, ones, zeros, cos, sin, dot, arcsin, arctan2, clip
+from numpy.linalg import norm
 
-from dsorlib.vehicles.state.state import State
-
-
-class DesiredState:
-    """
-    DesiredState class is essentially a structure to save all the desired values
-    for our quadrotor to follow
-    """
-
-    def __init__(self, pos=array([0.0, 0.0, -5.0]),
-                 vel=array([0.0, 0.0, 0.0]),
-                 acc=array([0.0, 0.0, 0.0]),
-                 yaw: float = 0.0,
-                 yaw_rate: float = 0.0):
-        """
-        :param pos: The desired position for the quadrotor [x, y, z]
-        :param vel: The desired velocity for the quadrotor [x_dot, y_dot, z_dot]
-        :param acc: The desired acceleration for the quadrotor [x_ddot, y_ddot, z_ddot]
-        :param yaw: The desired orientation (yaw angle)
-        :param yaw_rate: The desired heading rate (velocity in yaw)
-        """
-        self.pos = array(pos)
-        self.vel = array(vel)
-        self.acc = array(acc)
-        self.yaw: float = yaw
-        self.yaw_rate: float = yaw_rate
+from dsorlib.controllers import PID
 
 
 class QuadrotorInnerLoop:
 
-    def __init__(self,
-                 Kp: float,
-                 Kd: float,
-                 k1: float,
-                 k2: float,
-                 m: float,
-                 I: array,
-                 g: float=9.8):
-
+    def __init__(self, Kp: ndarray, Kd: ndarray, K1: ndarray, K2: ndarray,
+                 m: float, I: ndarray, g: float = 9.8, dt=0.01):
         # Constants for position control
-        self.Kp = float(Kp)
-        self.Kd = float(Kd)
+        self.Kp: ndarray = array(Kp)
+        self.Kd: ndarray = array(Kd)
 
         # Constants for attitude control
-        self.k1 = float(k1)
-        self.k2 = float(k2)
+        self.K1: ndarray = array(K1)
+        self.K2: ndarray = array(K2)
 
+        # The quadrotor model constants
         self.g: float = float(g)
         self.m: float = float(m)
-        self.I = I
+        self.I: ndarray = array(I).reshape((3, 3))
 
-    def pos_controller(self, desired_state: DesiredState, state: State):
+        # Define the limits for the position PD error to be -4 and 4
+        self.pos_lower_bounds = -4.0 * ones(3)
+        self.pos_upper_bounds = 4.00 * ones(3)
+
+        # Define the limits for the angle PD error
+        self.des_ang_lower_bounds = -10  # [deg]
+        self.des_ang_upper_bounds = 10  # [deg]
+
+        # The PD to actually do the computations for the position error
+        self.position_pd = PID(num_states=3,
+                               Kp=self.Kp,
+                               Kd=self.Kd,
+                               Ki=zeros(3),
+                               dt=dt,
+                               output_bounds=(self.pos_lower_bounds, self.pos_upper_bounds),
+                               is_angle=[False, False, False])
+
+        # The PD to do the computations for the angle errors
+        self.angle_pd = PID(num_states=3,
+                            Kp=self.K1,
+                            Kd=self.K2,
+                            Ki=zeros(3),
+                            dt=dt,
+                            output_bounds=None,
+                            is_angle=[True, True, True])
+
+    def position_controller(self,
+                            desired_pos: ndarray,
+                            eta_1: ndarray,
+                            eta_2: ndarray,
+                            eta_1_dot: ndarray):
         """
-        Position controller - given a set of desired position, velocity and acceleration
-        for the quadrotor and its current state:
-            1) Compute the thrust to apply to the quadrotor
-            2) Compute the 3rd column of the desired rotation matrix to be followed
-
-        :param desired_state: A DesiredState object with desired position, velocity and acceleration
-        :param state: The current state of the quadrotor AUV
-        :return: A tuple with (thrust, r3d), where thrust is the total force in Z to apply to the quadrotor
-        and r3d is the desired 3rd column of the rotation matrix
         """
 
-        # Compute the error between the current position and desired position
-        pos_error = array(state.eta_1) - desired_state.pos
-        vel_error = array(state.eta_1_dot) - desired_state.vel
+        # Set the correct reference for the PD controller to follow
+        self.position_pd.reference = array(desired_pos)
 
-        # Construct the input signal vector for the translational dynamics controller
-        u_t = -(self.Kp * pos_error) - (self.Kd * vel_error) - array([0, 0, self.g]) + desired_state.acc
+        # Compute the actual feedback value
+        feedback = self.position_pd(sys_output=eta_1,
+                                    sys_output_derivative=eta_1_dot)
 
-        # Compute the thrust to apply to the quadrotor
-        output = -self.m * norm(u_t)
+        # Compute the value of u_t
+        u_t = feedback - array([0.0, 0.0, self.g])
 
-        # Compute the desired angles for the attitude controller to follow
-        yaw_des = desired_state.yaw
-        Rz = array([[sin(yaw_des), -cos(yaw_des)],
-                    [cos(yaw_des), sin(yaw_des)]])
-        roll_pitch_des = dot(Rz, -u_t[0:2] / norm(u_t))
-        angle_des = array([roll_pitch_des[0], roll_pitch_des[1], yaw_des])
+        # Compute the desired thrust
+        thrust = self.m * norm(u_t)
 
-        return output, angle_des
+        # Normalize the feedback vector
+        r3d = -(1.0 / norm(u_t)) * u_t
 
-    def att_controller(self, angle_desired: array, desired_state: DesiredState, state: State):
+        # Get the current yaw angle
+        yaw = eta_2[2]
 
-        # Check if the desired angles are to big and clip them between -10 and 10 deg
-        angle_desired[0:2] = clip(angle_desired[0:2], -0.17, 0.17)
+        # Compute the rotation matrix about the z-axis
+        Rot_yaw = array([[cos(yaw), - sin(yaw), 0],
+                         [sin(yaw), cos(yaw), 0],
+                         [0, 0, 1]])
 
-        # Compute the error between the desired angles and the real angles
-        angle_error = array(state.eta_2) - angle_desired
-        angle_vel_error = array(state.v_2) - array([0.0, 0.0, desired_state.yaw_rate])
+        # Compute the desired roll and pitch
+        Z = self.m * dot(Rot_yaw, r3d)
+        des_roll = arcsin(-Z[1])
+        des_pitch = arctan2(Z[0], Z[2])
 
-        # Wrap the angle error between -pi and pi
-        while angle_error[0] > pi:
-            angle_error[0] -= 2*pi
-        while angle_error[0] < -pi:
-            angle_error[0] += 2*pi
+        return thrust, des_roll, des_pitch
 
-        while angle_error[1] > pi:
-            angle_error[1] -= 2*pi
-        while angle_error[1] < -pi:
-            angle_error[1] += 2*pi
+    def attitude_controller(self, des_roll: float, des_pitch: float, des_yaw: float, eta_2: ndarray, v_2: ndarray):
+        # Clip the desired angles so that they vary only between acceptable bounds
+        des_roll = clip(des_roll, self.des_ang_lower_bounds, self.des_ang_upper_bounds)
+        des_pitch = clip(des_pitch, self.des_ang_lower_bounds, self.des_ang_upper_bounds)
 
-        # Compute the output
-        output = -(self.k1 * angle_error) -(self.k2 * angle_vel_error)
+        # Set the correct reference for the PD controller to follow
+        self.angle_pd.reference = array([des_roll, des_pitch, des_yaw])
 
-        return dot(self.I, output)
+        # Get the actual feedback value
+        feedback = self.angle_pd(sys_output=eta_2, sys_output_derivative=v_2)
+
+        # Multiply by the inertia matrix and return
+        torques = dot(self.I, feedback)
+
+        return torques[0], torques[1], torques[2]

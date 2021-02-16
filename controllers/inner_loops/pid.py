@@ -63,13 +63,21 @@ class PID:
             self._reference: ndarray = array(reference, dtype=float).reshape(num_states)
 
         # Set the output bounds for the controller error
-        if output_bounds != (None, None):
-            self._output_min: ndarray = array([output_bounds[0]], dtype=float)
-            self._output_max: ndarray = array([output_bounds[1]], dtype=float)
+        if output_bounds is not None and output_bounds[0] is not None and output_bounds[1] is not None:
+
+            # If we only have one state, we must wrap the float with a list
+            if num_states == 1:
+                self._output_min: ndarray = array([output_bounds[0]], dtype=float)
+                self._output_max: ndarray = array([output_bounds[1]], dtype=float)
+            else:
+                self._output_min: ndarray = array(output_bounds[0], dtype=float)
+                self._output_max: ndarray = array(output_bounds[1], dtype=float)
 
             # Check if the controller output bounds are valid
             for i in range(num_states):
-                if self._output_min[i] > self._output_max[i]:
+                if num_states > 1 and self._output_min[i] > self._output_max[i]:
+                    raise ValueError("The lower bound for the output must be lower than the upper bounds!")
+                elif num_states == 1 and self._output_min > self._output_max:
                     raise ValueError("The lower bound for the output must be lower than the upper bounds!")
         else:
             self._output_min = None
@@ -77,7 +85,12 @@ class PID:
 
         # Check if the is_angle list is valid
         if is_angle is not None:
-            self._is_angle: BooleanList = [is_angle]
+
+            if num_states > 1:
+                self._is_angle: BooleanList = is_angle
+            else:
+                self._is_angle = [is_angle]
+
             if len(self._is_angle) != self.num_states:
                 raise ValueError("We should have a true or false for each state")
         else:
@@ -124,11 +137,11 @@ class PID:
         # Saturate the output between a minimum and maximum value
         # and compute the value for the anti-windup system to feedback
         if self._output_min is not None:
-            self._anti_windup[greater(self._output_min, output)] = output[greater(self._output_min, output)] - self._output_min
-            output[greater(self._output_min, output)] = self._output_min
+            self._anti_windup[greater(self._output_min, output)] = output[greater(self._output_min, output)] - self._output_min[greater(self._output_min, output)]
+            output[greater(self._output_min, output)] = self._output_min[greater(self._output_min, output)]
 
         if self._output_max is not None:
-            self._anti_windup[greater(output, self._output_max)] = output[greater(output, self._output_max)] - self._output_min
+            self._anti_windup[greater(output, self._output_max)] = output[greater(output, self._output_max)] - self._output_min[greater(output, self._output_max)]
             output[greater(output, self._output_max)] = self._output_max[greater(output, self._output_max)]
 
         # If the number of states is just one, return the control law as a float an not as a numpy array

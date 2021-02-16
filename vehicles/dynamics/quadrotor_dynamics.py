@@ -7,8 +7,7 @@ class QuadrotorDynamics:
     def __init__(self,
                  m: float,  # Mass
                  inertia_tensor: array,  # The inertia tensor (a vector of 9 elements)
-                 g: float  # Gravity acceleration
-                 ):
+                 g: float):
 
         self.m: float = float(m)  # The mass of the vehicle
         self.inertia_tensor: array = array(inertia_tensor)  # The inertia of the vehicle

@@ -24,7 +24,7 @@ from numpy import ndarray, array, zeros, dot, concatenate
 from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U, wrapAngle
 from dsorlib.vehicles.state.state import State
 from dsorlib.vehicles.vehicle import Vehicle
-from dsorlib.vehicles.auv_dynamics.abstract_auv_dynamics import AbstractAUVDynamics
+from dsorlib.vehicles.dynamics.abstract_auv_dynamics import AbstractAUVDynamics
 from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator
 from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
 

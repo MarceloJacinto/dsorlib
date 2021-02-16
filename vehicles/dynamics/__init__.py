@@ -6,3 +6,6 @@ from .neutral_buoyancy_auv_dynamics import NeutralBuoyancyAUVDynamics
 
 # Import the class where the vehicle is approximated by a sphere (for buoyancy purposes)
 from .sphere_auv_dynamics import SphereAUVDynamics
+
+# Import the dynamics of a quadrotor
+from .quadrotor_dynamics import QuadrotorDynamics

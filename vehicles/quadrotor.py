@@ -21,7 +21,7 @@
 #  SOFTWARE.
 from dsorlib.vehicles.vehicle import Vehicle
 from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator
-from dsorlib.vehicles.uav_dynamics.quadrotor_dynamics import QuadrotorDynamics
+from dsorlib.vehicles.dynamics.quadrotor_dynamics import QuadrotorDynamics
 from dsorlib.vehicles.state.state import State
 from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
 from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U, wrapAngle
@@ -182,16 +182,19 @@ class Quadrotor(Vehicle):
         pitch = self.state.eta_2[1]
         yaw = self.state.eta_2[2]
 
-        Rbu = rot_matrix_B_to_U(roll, pitch, yaw).transpose()
+        bRu = rot_matrix_B_to_U(roll, pitch, yaw).transpose()
 
         # Compute the coriolis terms
         coriolis = cross(self.state.v_2, self.state.v_1)
 
         # Compute gravity force
-        gravity = array([0.0, 0.0, self.rb_dynamics.m * self.rb_dynamics.g])
+        gravity = array([0.0, 0.0, self.rb_dynamics.g])
+
+        # Forces
+        forces = array([0.0, 0.0, -forces[2]])
 
         # Compute the translational dynamics in the body frame of reference
-        v1_dot = (1.0 / self.rb_dynamics.m) * (forces + dot(Rbu, gravity) - coriolis)
+        v1_dot = ((1.0 / self.rb_dynamics.m) * forces) + dot(bRu, gravity) - coriolis
 
         return v1_dot
 
