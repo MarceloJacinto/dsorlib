@@ -22,15 +22,15 @@
 from abc import ABC, abstractmethod
 
 
-class AbstractOceanCurrents(ABC):
+class AbstractDisturbance(ABC):
     """
     OceanCurrents is an abstract class used as a template to build
     any behaviour for ocean currents
     """
 
     def __init__(self):
-        if type(self) == AbstractOceanCurrents:
-            raise Exception("<AbstractOceanCurrents> cannot be instantiated. It is an abstract class")
+        if type(self) == AbstractDisturbance:
+            raise Exception("<AbstractDisturbance> cannot be instantiated. It is an abstract class")
 
     @abstractmethod
     def get_currents(self):

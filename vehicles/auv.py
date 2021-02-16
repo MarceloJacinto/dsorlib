@@ -19,26 +19,26 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-from numpy import array, zeros, dot, concatenate
+from numpy import ndarray, array, zeros, dot, concatenate
 
-from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U
+from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U, wrapAngle
 from dsorlib.vehicles.state.state import State
-from dsorlib.vehicles.abstract_vehicle import AbstractVehicle
-from dsorlib.vehicles.auv_rb_dynamics.abstract_auv_dynamics import AbstractAUVDynamics
-from dsorlib.vehicles.thrusters.abstract_thruster_model import AbstractThrusterModel
-from dsorlib.vehicles.ocean_currents.abstract_ocean_currents import AbstractOceanCurrents
+from dsorlib.vehicles.vehicle import Vehicle
+from dsorlib.vehicles.dynamics.abstract_auv_dynamics import AbstractAUVDynamics
+from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator
+from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
 
 
-class AUVVehicle(AbstractVehicle):
+class AUV(Vehicle):
     """
-    AUV class
+    AUV class that should be used as base to implement different AUV (Autonomous Underwater Vehicles)
     """
 
     def __init__(self,
                  rigid_body_dynamics: AbstractAUVDynamics,
-                 thruster_dynamics: AbstractThrusterModel,
+                 thruster_dynamics: ThrusterAllocator,
                  initial_state: State = State(),
-                 ocean_currents: AbstractOceanCurrents = None,
+                 ocean_currents: AbstractDisturbance = None,
                  dt: float = 0.01,
                  input_is_thrusts: bool = False):
         """
@@ -56,10 +56,7 @@ class AUVVehicle(AbstractVehicle):
         """
 
         # Initialized the Super Class with the update period (Discretized sampling period)
-        super().__init__(initial_state, dt)
-
-        # Create a initial state dot to save the derivatives of each state as they are computed
-        self.state_dot = State()
+        super().__init__(initial_state=initial_state, dt=dt)
 
         # Setup the rigid body dynamics for the vehicles
         # This object is not passed as copy so that if we want multiple AUV sharing the same rigid body dynamics
@@ -67,7 +64,7 @@ class AUVVehicle(AbstractVehicle):
         self.rb_dynamics = rigid_body_dynamics
 
         # Setup the thruster model to be used by the AUV model
-        self.thruster_dynamics = thruster_dynamics.__copy__()
+        self.thruster_dynamics = thruster_dynamics
 
         # Save the type of ocean currents to use
         # The ocean currents is not passed as copy so that if we want to have multiple AUV sharing the same
@@ -101,24 +98,17 @@ class AUVVehicle(AbstractVehicle):
 
             # Convert the desired general forces applied in the rigid body to the desired thrusts
             # and check if we are getting the correct size
-            thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
+            thrusts = self.thruster_dynamics.convert_general_forces_to_thrusts(array(desired_input).reshape(6))
         else:
             # The "forces" vector received is not general forces but rather thrusts applied directly to the motors
             # and check if we are getting as many desired thrust as the number of thrusters in our thruster model
-            thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
+            thrusts = array(desired_input).reshape(self.thruster_dynamics.number_of_thrusters)
 
         # --------------------------------------------------------
         # -- Propagate the desired thrust by the thruster model --
         # --------------------------------------------------------
-
-        # Convert the thruster desired input in Newton [N] to another scale (for example %RPM)
-        thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
-        # Give the desired input to the thrusters and get the output in the same unit
-        thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
-        # Convert back the output of the thrusters (for example in %RPM) to Newton [N]
-        thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
-        # Convert the output of the thrusters to generalized vector of forces and torques in the rigid body
-        applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
+        applied_thrusts = self.thruster_dynamics.apply_thrusters_dynamics(thrusts)
+        applied_forces = self.thruster_dynamics.convert_thrusts_to_general_forces(applied_thrusts)
 
         # --------------------------------------------------------
         # --   Compute the ocean currents to use by the model   --
@@ -127,7 +117,7 @@ class AUVVehicle(AbstractVehicle):
         # Update the ocean currents dynamics
         if self.ocean_currents is None:
             # Assume zero currents in [x, y, z] components
-            currents = zeros((3,))
+            currents = zeros(3)
         else:
             currents = self.ocean_currents.get_currents()
 
@@ -149,7 +139,11 @@ class AUVVehicle(AbstractVehicle):
         self.state.eta_1 = integrate(x_dot=self.state_dot.eta_1, x=self.state.eta_1, dt=self.dt)
         self.state.eta_2 = integrate(x_dot=self.state_dot.eta_2, x=self.state.eta_2, dt=self.dt)
 
-    def kinematics(self, currents: array) -> ():
+        # Wrap the angles (phi, theta, psi) between -pi and pi
+        for i in range(self.state.eta_2.size):
+            self.state.eta_2[i] = wrapAngle(self.state.eta_2[i])
+
+    def kinematics(self, currents: ndarray) -> ():
         """
         Kinematics: Updates the kinematics of the vehicle based on the equation
         |-       -| = |-    -| . |- -|     |-      -|

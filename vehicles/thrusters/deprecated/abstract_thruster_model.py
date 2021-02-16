@@ -137,8 +137,11 @@ class AbstractThrusterModel(ABC):
         min_requested = min(thrust_vector)
 
         normalize = 1.0
-        normalize = max([abs(min_requested / self.min_thrust), normalize])
-        normalize = max([abs(max_requested / self.max_thrust), normalize])
+
+        if self.min_thrust != 0:
+            normalize = max([abs(min_requested / self.min_thrust), normalize])
+        if self.max_thrust != 0:
+            normalize = max([abs(max_requested / self.max_thrust), normalize])
 
         return (1.0 / normalize) * thrust_vector
 

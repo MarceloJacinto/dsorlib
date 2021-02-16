@@ -23,6 +23,21 @@ from dsorlib.vehicles.state.state import State
 from numpy import array, sin, cos, tan, maximum, minimum, pi
 
 
+def wrapAngle(angle):
+    """
+    Wrap angles between -pi and pi
+    """
+    # check if upperbound is violated and fix it
+    while angle > pi:
+        angle = angle - 2.0 * pi
+
+    # check if lowerbound is violated and fix it
+    while angle < -pi:
+        angle = angle + 2.0 * pi
+
+    return angle
+
+
 def create_state_history(state: State):
     """
     Creates a dictionary to save the states together with time

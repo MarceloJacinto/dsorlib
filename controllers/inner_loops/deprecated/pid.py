@@ -56,7 +56,7 @@ class PID:
         self.Kd: float = float(Kd)
 
         # Save the regulated level to maintain (reference to follow)
-        self.reference: float = float(reference)
+        self._reference: float = float(reference)
 
         # The lower and upper bounds of the control signal
         if None not in output_bounds and output_bounds[0] > output_bounds[1]:
@@ -74,7 +74,7 @@ class PID:
         self._integral_error: float = 0.0  # The integral accumulated error on the previous iteration
         self._anti_windup: float = 0.0  # The anti-windup gain
 
-    def __call__(self, sys_output: float, sys_output_derivative=None):
+    def __call__(self, sys_output: float, sys_output_derivative: float = None):
         """
         Update the control law for the PID
 
@@ -88,7 +88,7 @@ class PID:
         """
 
         # Compute the proportional error
-        error = sys_output - self.reference
+        error = sys_output - self._reference
 
         # Check if the error is an angle (the error between 2 angles cannot ever be superior to pi)
         if self._is_angle:
@@ -98,8 +98,7 @@ class PID:
                 error += (2 * pi)
 
         # Compute the integral error-anti_windup
-        # self._anti_windup
-        integral_error = integrate(x_dot=error-self._anti_windup, x=self._integral_error, dt=self._dt)
+        integral_error = integrate(x_dot=error - self._anti_windup, x=self._integral_error, dt=self._dt)
 
         # Update the integral error for the next iteration
         self._integral_error = integral_error
@@ -140,7 +139,7 @@ class PID:
         """
         Reset the PID controller, but keeping the gains
         """
-        self.reference: float = 0.0
+        self._reference: float = 0.0
         self._prev_output: float = 0.0
         self._integral_error: float = 0.0
         self._anti_windup: float = 0.0
@@ -196,3 +195,18 @@ class PID:
         :param is_angle: a boolean to check if the reference value is an angle or not
         """
         self._is_angle: bool = bool(is_angle)
+
+    @property
+    def reference(self):
+        """
+        :return: Returns the reference the PID is trying to follow
+        """
+        return self._reference
+
+    @reference.setter
+    def reference(self, ref_value):
+        """
+        Update the reference for the PID to follow
+        :param ref_value: A float or a numpy array with values for reference
+        """
+        self._reference = float(ref_value)

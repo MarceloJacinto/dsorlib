@@ -21,7 +21,7 @@
 #  SOFTWARE.
 from numpy import array, zeros
 
-from dsorlib.vehicles.auv_rb_dynamics.abstract_auv_dynamics import AbstractAUVDynamics
+from dsorlib.vehicles.dynamics.abstract_auv_dynamics import AbstractAUVDynamics
 from dsorlib.vehicles.state.state import State
 
 

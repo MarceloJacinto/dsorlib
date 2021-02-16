@@ -24,9 +24,9 @@ from abc import ABC, abstractmethod
 from dsorlib.vehicles.state.state import State
 
 
-class AbstractVehicle(ABC):
+class Vehicle(ABC):
 
-    def __init__(self, initial_state: State, dt: float = 0.1):
+    def __init__(self, initial_state: State, initial_state_dot: State = State(), dt: float = 0.1):
         """
         An Abstract class that every vehicle should inherit from.
         :param initial_state: State object with the initial state of the vehicle
@@ -40,8 +40,11 @@ class AbstractVehicle(ABC):
         # more vehicles can share the same initial state without sharing the actual state object (to avoid bugs)
         self.state = initial_state.__copy__()
 
-        if type(self) == AbstractVehicle:
-            raise Exception("<AbstractVehicle> cannot be instantiated. It is an abstract class")
+        # Create a initial state dot to save the derivatives of each state as they are computed
+        self.state_dot = initial_state_dot.__copy__()
+
+        if type(self) == Vehicle:
+            raise Exception("<Vehicle> cannot be instantiated. It is an abstract class")
 
     @abstractmethod
     def update(self, desired_input):
@@ -52,3 +55,15 @@ class AbstractVehicle(ABC):
         :param desired_input: The desired input to apply to the vehicle
         """
         pass
+
+    def reset_vehicle(self, state: State = State()):
+        """
+        Method to reset the current state of the vehicle
+        :param state: The new state of the vehicle (if not given, it will be all zeros)
+        """
+
+        # Reset the state to one pre-defined by the user
+        self.state = state
+
+        # Reset the derivatives of the state to become zero
+        self.state_dot = State()

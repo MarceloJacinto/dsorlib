@@ -22,10 +22,10 @@
 from numpy import array, array_equal, zeros, maximum, minimum
 from numpy.random import normal
 
-from dsorlib.vehicles.ocean_currents.abstract_ocean_currents import AbstractOceanCurrents
+from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
 
 
-class GaussianOceanCurrents(AbstractOceanCurrents):
+class GaussianDisturbance(AbstractDisturbance):
     """
     GaussianOceanCurrents is a class that implements ocean currents following a random
     gaussian distribution centered around a specified mean vector

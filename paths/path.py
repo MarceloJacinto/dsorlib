@@ -27,7 +27,7 @@ This path parameterization algorithm was based on the one used in the MEDUSA cla
 
 Create a path that may contain multiple path sections
 The way this works is:
-- the controler works with the parameterization s which can vary in an not limited way (lets say, it can go from -1 to 100 for example)
+- the controller works with the parameterization s which can vary in an not limited way (lets say, it can go from -1 to 100 for example)
 - but each section of the path only varies from 0 to 1
 - The controller is not aware that the path has different segments. It just does its job, calculates an s and wants some information back.
 
@@ -41,10 +41,10 @@ and the controller does not need to know nothing about that. It only needs to kn
 
 class Path:
     """
-    Class Path stores severall pathSections. This class provides methods to
+    Class Path stores several pathSections. This class provides methods to
     - add new sections to the Path, 
     - retrieve a pathSection given an s, 
-    - get the points of the path (with a specified decimation), usefull for ploting :)
+    - get the points of the path (with a specified decimation), useful for plotting :)
     - get the curvature of a point in the path, given s
     - get the angle of the tangent to the path, given s
     - get the position X, Y in the inertial frame, given s
@@ -83,17 +83,19 @@ class Path:
 
     def getPathPoints(self, decimation=0.01) -> ([], []):
         """
-        Method to get the points X,Y of the path (using a given decimation - default=0.01). Usefull
-        for plotting :)
+        Method to get the points X,Y,Z of the path (using a given decimation - default=0.01).
+        Useful for plotting
         """
         pathPointsX = []
         pathPointsY = []
+        pathPointsZ = []
         for section in self._pathSections:
-            x, y = section.getPathSectionPoints(decimation)
+            x, y, z = section.getPathSectionPoints(decimation)
             pathPointsX = pathPointsX + x
             pathPointsY = pathPointsY + y
+            pathPointsZ = pathPointsZ + z
 
-        return (pathPointsX, pathPointsY)
+        return pathPointsX, pathPointsY, pathPointsZ
 
     def getCurvature(self, s: float) -> float:
         """
@@ -117,9 +119,8 @@ class Path:
         """
         Method to return the (min_value_of_s, max_value_of_s) - the bounds of the parameterization s
         """
-        return (float(0.0), len(self._pathSections))
+        return float(0.0), len(self._pathSections)
 
-    # Auxiliary private method to get an s that varies from 0 to 1 from one that can vary from -inf to inf
     def __getInternalS(self, s: float):
         """
         Private Auxiliary method to get a parameterization s varying from 0 to 1, from an s that can vary from -inf to +inf.
