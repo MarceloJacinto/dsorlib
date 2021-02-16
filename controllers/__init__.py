@@ -6,3 +6,6 @@ from dsorlib.controllers.inner_loops.auv_inner_loops import yaw_rate_PI, yaw_PD,
 
 # Import the position and attitude controllers for a quadrotor
 from dsorlib.controllers.inner_loops.quadrotor_inner_loops import QuadrotorInnerLoop
+
+# Import the Path following virtual target implementations
+from dsorlib.controllers.path_following.virtual_target import VirtualTarget, SimpleVirtualTarget
