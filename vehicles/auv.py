@@ -19,14 +19,14 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-from numpy import array, zeros, dot, concatenate
+from numpy import ndarray, array, zeros, dot, concatenate
 
 from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U, wrapAngle
 from dsorlib.vehicles.state.state import State
 from dsorlib.vehicles.vehicle import Vehicle
 from dsorlib.vehicles.auv_dynamics.abstract_auv_dynamics import AbstractAUVDynamics
 from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator
-from dsorlib.vehicles.ocean_currents.abstract_ocean_currents import AbstractOceanCurrents
+from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
 
 
 class AUV(Vehicle):
@@ -38,7 +38,7 @@ class AUV(Vehicle):
                  rigid_body_dynamics: AbstractAUVDynamics,
                  thruster_dynamics: ThrusterAllocator,
                  initial_state: State = State(),
-                 ocean_currents: AbstractOceanCurrents = None,
+                 ocean_currents: AbstractDisturbance = None,
                  dt: float = 0.01,
                  input_is_thrusts: bool = False):
         """
@@ -109,8 +109,6 @@ class AUV(Vehicle):
         # --------------------------------------------------------
         applied_thrusts = self.thruster_dynamics.apply_thrusters_dynamics(thrusts)
         applied_forces = self.thruster_dynamics.convert_thrusts_to_general_forces(applied_thrusts)
-        #applied_forces = desired_input
-        #print(applied_forces)
 
         # --------------------------------------------------------
         # --   Compute the ocean currents to use by the model   --
@@ -145,7 +143,7 @@ class AUV(Vehicle):
         for i in range(self.state.eta_2.size):
             self.state.eta_2[i] = wrapAngle(self.state.eta_2[i])
 
-    def kinematics(self, currents: array) -> ():
+    def kinematics(self, currents: ndarray) -> ():
         """
         Kinematics: Updates the kinematics of the vehicle based on the equation
         |-       -| = |-    -| . |- -|     |-      -|

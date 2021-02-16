@@ -20,20 +20,23 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from dsorlib.vehicles.vehicle import Vehicle
-from dsorlib.vehicles.thrusters.deprecated.abstract_thruster_model import AbstractThrusterModel
+from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator
 from dsorlib.vehicles.uav_dynamics.quadrotor_dynamics import QuadrotorDynamics
 from dsorlib.vehicles.state.state import State
-from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U
+from dsorlib.vehicles.disturbances.abstract_disturbance import AbstractDisturbance
+from dsorlib.utils import integrate, rot_matrix_B_to_U, ang_vel_rot_B_to_U, wrapAngle
 
-from numpy import array, cross, dot
+from numpy import ndarray, array, cross, dot, zeros
 
 
+# noinspection DuplicatedCode
 class Quadrotor(Vehicle):
 
     def __init__(self,
                  rigid_body_dynamics: QuadrotorDynamics,
-                 thruster_dynamics: AbstractThrusterModel,
+                 thruster_dynamics: ThrusterAllocator,
                  initial_state: State,
+                 wind: AbstractDisturbance = None,
                  dt: float = 0.01,
                  input_is_thrusts: bool = False):
         """
@@ -58,11 +61,16 @@ class Quadrotor(Vehicle):
         self.rb_dynamics = rigid_body_dynamics
 
         # Setup the thruster model to be used by the AUV model
-        self.thruster_dynamics = thruster_dynamics.__copy__()
+        self.thruster_dynamics = thruster_dynamics
 
         # Boolean to check whether the input will be a vector of thrusts to each motor
         # or will be a vector os general forces and torques applied in the rigid body
         self.input_is_thrusts = input_is_thrusts
+
+        # Save the type of wind to use
+        # The ocean currents is not passed as copy so that if we want to have multiple drones sharing the same
+        # wind currents, we have the ability to do so
+        self.wind = wind
 
     def update(self, desired_input: array = array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])):
         """
@@ -87,26 +95,28 @@ class Quadrotor(Vehicle):
 
             # Convert the desired general forces applied in the rigid body to the desired thrusts
             # and check if we are getting the correct size
-            thrusts = self.thruster_dynamics.force_to_thrustN(array(desired_input).reshape((6,)))
+            thrusts = self.thruster_dynamics.convert_general_forces_to_thrusts(array(desired_input).reshape(6))
         else:
             # The "forces" vector received is not general forces but rather thrusts applied directly to the motors
             # and check if we are getting as many desired thrust as the number of thrusters in our thruster model
-            thrusts = array(desired_input).reshape((self.thruster_dynamics.number_of_thrusters,))
+            thrusts = array(desired_input).reshape(self.thruster_dynamics.number_of_thrusters)
 
         # --------------------------------------------------------
         # -- Propagate the desired thrust by the thruster model --
         # --------------------------------------------------------
+        applied_thrusts = self.thruster_dynamics.apply_thrusters_dynamics(thrusts)
+        applied_forces = self.thruster_dynamics.convert_thrusts_to_general_forces(applied_thrusts)
 
-        # Convert the thruster desired input in Newton [N] to another scale (for example %RPM)
-        thruster_inputs = self.thruster_dynamics.thrust_to_input(thrusts)
-        # Give the desired input to the thrusters and get the output in the same unit
-        thruster_real_output = self.thruster_dynamics.thrusters_dynamic_model(thruster_inputs)
-        # Convert back the output of the thrusters (for example in %RPM) to Newton [N]
-        thruster_real_output = self.thruster_dynamics.input_to_thrust(thruster_real_output)
-        # Convert the output of the thrusters to generalized vector of forces and torques in the rigid body
-        applied_forces = self.thruster_dynamics.thrust_to_forceN(thruster_real_output)
+        # --------------------------------------------------------
+        # --       Compute the wind to use by the model         --
+        # --------------------------------------------------------
 
-        #applied_forces = array(desired_input)
+        # Update the ocean currents dynamics
+        if self.wind is None:
+            # Assume zero currents in [x, y, z] components
+            wind = zeros(3)
+        else:
+            wind = self.wind.get_currents()
 
         # --------------------------------------------
         # -- Compute the dynamics of the rigid body --
@@ -121,16 +131,17 @@ class Quadrotor(Vehicle):
         # ----------------------------------------------
         # -- Compute the kinematics of the rigid body --
         # -----------------------------------------------
-        self.state_dot.eta_1, self.state_dot.eta_2 = self.kinematics()
-
-        # Save the [x_dot, y_dot, v_dot] vector (preferred in quadrotors)
-        self.state.eta_1_dot = self.state_dot.eta_1
+        self.state_dot.eta_1, self.state_dot.eta_2 = self.kinematics(wind=wind)
 
         # Integrate the kinematics
         self.state.eta_1 = integrate(x_dot=self.state_dot.eta_1, x=self.state.eta_1, dt=self.dt)
         self.state.eta_2 = integrate(x_dot=self.state_dot.eta_2, x=self.state.eta_2, dt=self.dt)
 
-    def kinematics(self) -> ():
+        # Wrap the angles (phi, theta, psi) between -pi and pi
+        for i in range(self.state.eta_2.size):
+            self.state.eta_2[i] = wrapAngle(self.state.eta_2[i])
+
+    def kinematics(self, wind: ndarray) -> ():
         """
         Kinematics: Updates the kinematics of the vehicle based on the equation
         |-       -| = |-    -| . |- -|     |-      -|
@@ -140,7 +151,7 @@ class Quadrotor(Vehicle):
         with R being the rotation matrix from {U} - Inertial Frame to {B} - Body Frame
         and Q being the transformation matrix of angular velocities from {U} to {B}
 
-        :param wind: a vector with the currents in [x, y, z] in m/s
+        :param wind: a vector with the currents in [x, y, z] in m/s in the inertial frame
         :return: (state_dot_eta_1, state_dot_eta_2) - a tuple with
                 state_dot_eta_1 = [x_dot, y_dot, z_dot]'
                 state_dot_eta_2 = [phi_dot, theta_dot, psi_dot]'
@@ -150,13 +161,12 @@ class Quadrotor(Vehicle):
         psi = self.state.eta_2[2]
 
         # Update x_dot, y_dot and z_dot
-        state_dot_eta_1 = dot(rot_matrix_B_to_U(phi, theta, psi), self.state.v_1)
+        state_dot_eta_1 = dot(rot_matrix_B_to_U(phi, theta, psi), self.state.v_1) + wind
 
         # Update phi_dot, theta_dot, psi_dot
         state_dot_eta_2 = dot(ang_vel_rot_B_to_U(phi, theta, psi), self.state.v_2)
 
         return state_dot_eta_1, state_dot_eta_2
-
 
     def translational_dynamics(self, forces: array):
         """
@@ -205,4 +215,3 @@ class Quadrotor(Vehicle):
         v2_dot = dot(I_inv, torques - coriolis)
 
         return v2_dot
-

@@ -1,2 +1,2 @@
 from .state import state
-from . import thrusters, auv_dynamics, ocean_currents
+from . import thrusters, auv_dynamics, disturbances
