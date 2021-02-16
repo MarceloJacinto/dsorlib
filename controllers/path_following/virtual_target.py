@@ -90,14 +90,37 @@ class SimpleVirtualTarget(VirtualTarget):
     """
 
     def __init__(self, initial_state: float = 0.0):
+        """
+        The constructor for the virtual target that moves at a specified velocity
+        :param initial_state: The initial position of the virtual target in the parameterized path
+        """
 
         # Initialized the Super Class with the initial state for the virtual target
         super().__init__(initial_state=initial_state)
 
     def update(self, desired_velocity: float, dt: float = 0.01):
-
         # The velocity of the target is the same as the desired velocity
         self._gamma_dot = desired_velocity
 
         # Integrate the gamma to get the current parameter of the virtual target
         self._gamma = integrate(x_dot=self._gamma_dot, x=self._gamma, dt=dt)
+
+
+class AdaptiveVirtualTarget(VirtualTarget):
+
+    def __init__(self, initial_state: float = 0.0, kz: float = 1.0):
+        """
+        The constructor for the virtual target that is adaptive as a function of both
+        the desired velocity for the virtual target and the distance between the real
+        vehicle and the virtual target
+
+        :param initial_state: The initial position of the virtual target in the parameterized path
+        :param kz: The gain for the control law (how much importance to give to the desired velocity to follow)
+        """
+
+        # Initialized the Super Class with the initial state for the virtual target
+        super().__init__(initial_state=initial_state)
+
+    def update(self, desired_velocity: float, dt: float = 0.01):
+        # TODO
+        pass
