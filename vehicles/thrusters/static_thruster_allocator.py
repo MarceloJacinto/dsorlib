@@ -1,3 +1,24 @@
+#  MIT License
+#
+#  Copyright (c) 2021 Marcelo Jacinto
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
 from numpy import ndarray, array, zeros, dot, clip
 from numpy.linalg import pinv
 from dsorlib.vehicles.thrusters.thruster_allocater import ThrusterAllocator, ThrustersList
@@ -7,7 +28,6 @@ class StaticThrusterAllocator(ThrusterAllocator):
 
     def __init__(self,
                  B: ndarray,
-                 number_of_thrusters: int,
                  thrusters: ThrustersList,
                  normalize: bool = True):
         """
@@ -19,7 +39,6 @@ class StaticThrusterAllocator(ThrusterAllocator):
         final orientation of the forces and torques applied on the vehicle
 
         :param B: The allocation numpy matrix of size[num_of_thrusters, 6]
-        :param number_of_thrusters: The number of thrusters used
         :param thrusters: A list of thrusters to use
         :param normalize: A boolean to choose whether to normalize the vector of thrusts
             of just clamp the value of the allocation. If normalize=True will normalize, otherwise
@@ -27,11 +46,11 @@ class StaticThrusterAllocator(ThrusterAllocator):
         """
 
         # Initialized the Super Class (Thruster) elements
-        super().__init__(number_of_thrusters, thrusters)
+        super().__init__(thrusters)
 
         # The allocation matrix B
         # [Fx Fy Fz Tx Ty Tx]' = B * [Force_motor_1 Force_motor_2 ... Force_motor_n]'
-        self.B: ndarray = array(B).reshape((number_of_thrusters, 6))
+        self.B: ndarray = array(B).reshape((6, self.number_of_thrusters))
 
         # Calculate the pseudo-inverse of B (the inverse of the allocation matrix)
         # [Force_motor_1 Force_motor_2 ... Force_motor_n]' = pseudo_inv(B) * [Fx Fy Fz Tx Ty Tx]'
@@ -40,18 +59,14 @@ class StaticThrusterAllocator(ThrusterAllocator):
         # Whether to normalize or clamp the values for each thruster
         self.normalize: bool = bool(normalize)
 
-        # Get an array of minimum and maximum values corresponding to each thruster
-        self.min_values: ndarray = zeros(number_of_thrusters)
-        self.max_values: ndarray = zeros(number_of_thrusters)
+        # Get an array of minimum and maximum forces that each thruster can apply
+        self.min_force: ndarray = zeros(self.number_of_thrusters)
+        self.max_force: ndarray = zeros(self.number_of_thrusters)
 
         for thruster, i in zip(self.thrusters, range(self.number_of_thrusters)):
 
-            # Get the input bounds for the thrusters input (for example -4500RPM, 4500RPM)
-            min_value_input, max_value_input = thruster.input_bounds
-
-            # Get the equivalent in Newtons [N]
-            self.min_values[i] = thruster.input_unit_to_force(min_value_input)
-            self.max_values[i] = thruster.input_unit_to_force(max_value_input)
+            # Get the input bounds for the thrusters inputs (for example -25N, 25N)
+            self.min_force[i], self.max_force[i] = thruster.force_bounds
 
     def convert_thrusts_to_general_forces(self, thrusts: ndarray):
         """
@@ -85,7 +100,7 @@ class StaticThrusterAllocator(ThrusterAllocator):
 
         # Check if we just want to clamp the thrust values to apply
         if not self.normalize:
-            return clip(thrust_vector, self.min_values, self.max_values)
+            return clip(thrust_vector, self.min_force, self.max_force)
 
         # Otherwise, normalize all the thrusts so that the direction of the forces and torques are preserved
         normalize = 1.0
@@ -93,9 +108,9 @@ class StaticThrusterAllocator(ThrusterAllocator):
         for i in range(self.number_of_thrusters):
             # If we are asking a negative thrust, check whether we are asking bellow the minimum allowed for that thruster
             if thrust_vector[i] < 0:
-                normalize = max(abs(self.thrust_vector[i] / self.min_values[i]), normalize)
+                normalize = max(abs(thrust_vector[i] / self.min_force[i]), normalize)
             # If we are asking a positive thrust, check whether we are asking above the maximum allowed for each thruster
             else:
-                normalize = max(abs(self.thrust_vector[i] / self.max_values[i]), normalize)
+                normalize = max(abs(thrust_vector[i] / self.max_force[i]), normalize)
 
         return (1.0 / normalize) * thrust_vector

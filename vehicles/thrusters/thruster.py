@@ -1,3 +1,24 @@
+#  MIT License
+#
+#  Copyright (c) 2021 Marcelo Jacinto
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
 from abc import ABC, abstractmethod
 
 
@@ -16,6 +37,11 @@ class Thruster(ABC):
         # Save the minimum and maximum input values for the thrusters (in %RPM, RPM or rad/s for example)
         self._min_input: float = float(min_input)
         self._max_input: float = float(max_input)
+
+        # Compute the corresponding minimum and maximum force (in Newtons) that the thruster can apply
+        # corresponding to the minimum and maximum inputs
+        self._min_force: float = self.input_unit_to_force(self._min_input)
+        self._max_force: float = self.input_unit_to_force(self._max_input)
 
     @property
     def input_bounds(self):
@@ -40,6 +66,18 @@ class Thruster(ABC):
         # Save the new bounds for the thruster
         self._min_input: float = float(min_input)
         self._max_input: float = float(max_input)
+
+        # Update the minimum and maximum force bounds (in Newtons)
+        self._min_force: float = self.input_unit_to_force(self._min_input)
+        self._max_force: float = self.input_unit_to_force(self._max_input)
+
+    @property
+    def force_bounds(self):
+        """
+        Getter for the minimum and maximum force that the thruster can apply (in Newtons)
+        :return: A tuple of floats with (min_force, max_force)
+        """
+        return self._min_force, self._max_force
 
     @abstractmethod
     def force_to_input_unit(self, force_val: float):

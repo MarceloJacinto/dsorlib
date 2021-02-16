@@ -22,7 +22,7 @@
 
 from numpy import array, zeros, sqrt, power, around, exp, multiply, maximum, minimum
 
-from dsorlib.vehicles.thrusters.abstract_thruster_model import AbstractThrusterModel
+from dsorlib.vehicles.thrusters.deprecated.abstract_thruster_model import AbstractThrusterModel
 
 
 # noinspection PyPep8Naming

@@ -20,7 +20,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from numpy import abs
-from dsorlib.controllers.pid import PID
+from dsorlib.controllers.inner_loops.pid import PID
 from dsorlib.vehicles.state.state import State
 
 
