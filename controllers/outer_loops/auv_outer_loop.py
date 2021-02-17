@@ -11,9 +11,8 @@ def rot_matrix_from_B_to_U(yaw):
     :param yaw:
     :return:
     """
-    return array([[cos(yaw), -sin(yaw), 0.0],
-                  [sin(yaw), cos(yaw), 0.0],
-                  [0.0, 0.0, 1.0]])
+    return array([[cos(yaw), -sin(yaw)],
+                  [sin(yaw), cos(yaw)]])
 
 
 class AUVOuterLoop:
@@ -54,7 +53,6 @@ class AUVOuterLoop:
                  state: State,
                  desired_pos: ndarray,
                  desired_vel: ndarray,
-                 v_sway: float = 0.0,
                  v_disturbances: ndarray = array([0.0, 0.0])):
 
         # Compute the rotation matrix from the inertial frame to the body frame
@@ -65,6 +63,9 @@ class AUVOuterLoop:
 
         # Convert the error to the body frame
         error_B = dot(bRu, error_I)
+
+        # Get the sway velocity from the state vector
+        v_sway = state.v_1[1]
 
         # Compute the feedback law
         u_d = dot(self.inv_delta_matrix, -dot(self.K, tanh(error_B - self.delta_vec)) - array([0.0, v_sway]) - v_disturbances + dot(bRu, desired_vel))

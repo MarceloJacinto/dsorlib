@@ -19,7 +19,7 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-from numpy import array, power, pi, sin, cos
+from numpy import ndarray, array, power, pi, sin, cos
 
 from dsorlib.vehicles.dynamics.abstract_auv_dynamics import AbstractAUVDynamics
 from dsorlib.vehicles.state.state import State
@@ -40,11 +40,12 @@ class SphereAUVDynamics(AbstractAUVDynamics):
     def __init__(self,
                  vehicle_volume: float,  # Vehicle volume in [m^3]
                  m: float,  # Mass
-                 inertia_tensor: array,  # The inertia tensor (a vector of 9 elements)
-                 damping: array,  # The damping vector
-                 quadratic_damping: array,  # The quadratic damping vector
-                 added_mass: array,  # The added mass terms
+                 inertia_tensor: ndarray,  # The inertia tensor (a vector of 9 elements)
+                 damping: ndarray,  # The damping vector
+                 quadratic_damping: ndarray,  # The quadratic damping vector
+                 added_mass: ndarray,  # The added mass terms
                  g: float = 9.8,  # Gravity acceleration
+                 cg: ndarray = array([0.0, 0.0, 0.0]), # The center of gravity position relative to the body frame
                  fluid_density: float = 1000,  # Water/fluid density in [kg/m^3]
                  sea_surface_z: float = 0.0  # The z-coordinate of the inertial frame where the sea surface is
                  ):
@@ -59,16 +60,19 @@ class SphereAUVDynamics(AbstractAUVDynamics):
                          fluid_density=fluid_density,
                          sea_surface_z=sea_surface_z)
 
+        # Save the center of gravity
+        self.cg: ndarray = array(cg)
+
         # Calculate W (the gravity force)
-        self.W = float(m * g)
+        self.W: float = float(m * g)
 
         # Save the vehicle volume and approximate the vehicle for a sphere with a given radius
         # that we are going to calculate according to the formula of the volume of a sphere
-        self.vehicle_volume = float(vehicle_volume)  # Vehicle volume in [m^3]
-        self.vehicle_radius = float(power(3 / (4 * pi) * self.vehicle_volume, 1 / 3))
+        self.vehicle_volume: float = float(vehicle_volume)  # Vehicle volume in [m^3]
+        self.vehicle_radius: float = float(power(3 / (4 * pi) * self.vehicle_volume, 1 / 3))
 
         # Compute the density of the vehicle
-        self.vehicle_density = float(self.m / self.vehicle_volume)
+        self.vehicle_density: float = float(self.m / self.vehicle_volume)
 
     def compute_gravitational_forces(self, state: State):
         """
@@ -133,7 +137,7 @@ class SphereAUVDynamics(AbstractAUVDynamics):
         :return: the buoyancy center defined with respect to the body reference frame
         """
 
-        cm = state.eta_1[2]  # the z-coordinate of the center of mass of the sphere/vehicle
+        cm = state.eta_1[2] - self.cg[2] # the z-coordinate of the center of mass of the sphere/vehicle
         zo = self.sea_surface_z  # the z-coordinate of the sea-surface
         r = self.vehicle_radius  # the radius of the sphere/vehicle
 
@@ -145,7 +149,8 @@ class SphereAUVDynamics(AbstractAUVDynamics):
             # If the center of mass of the sphere/vehicle is above seawater level but the sphere
             # is partially submerged, the height of the submerged region is given by:
             h = r - (zo - cm)
-        elif cm >= zo < cm - r:
+            print(h)
+        elif zo <= cm < zo + r:
             # If the center of mass of the sphere/vehicle is bellow seawater level
             # with the sphere partially submerged, the height of the submerged region is given by:
             h = r + (cm - zo)
@@ -181,7 +186,7 @@ class SphereAUVDynamics(AbstractAUVDynamics):
         :return: the volume of water displaced by the vehicle
         """
 
-        cm = state.eta_1[2]  # the z-coordinate of the center of mass of the sphere/vehicle
+        cm = state.eta_1[2] - self.cg[2] # the z-coordinate of the center of mass of the sphere/vehicle
         zo = self.sea_surface_z  # the z-coordinate of the sea-surface
         r = self.vehicle_radius  # the radius of the sphere/vehicle
         v_vehicle = self.vehicle_volume  # the volume of the vehicle

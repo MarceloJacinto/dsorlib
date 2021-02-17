@@ -106,16 +106,26 @@ class SimpleVirtualTarget(VirtualTarget):
         self._gamma = integrate(x_dot=self._gamma_dot, x=self._gamma, dt=dt)
 
 
-class AdaptiveVirtualTarget(VirtualTarget):
+class CooperativeVirtualTarget(VirtualTarget):
+    """
+    Implements a virtual target that moves along a path with a velocity that will vary
+    depending on the synchronization error between other virtual targets, the synchronization
+    between the desired velocity for the virtual target and its own and the error between
+    the vehicle's real position and the virtual target's position in the inertial frame
+    """
 
-    def __init__(self, initial_state: float = 0.0, kz: float = 1.0):
+    def __init__(self,
+                 initial_state: float = 0.0,
+                 Ka: float = 1.0,
+                 Kb: float = 1.0,
+                 delta: float = 1.0):
         """
         The constructor for the virtual target that is adaptive as a function of both
         the desired velocity for the virtual target and the distance between the real
         vehicle and the virtual target
 
         :param initial_state: The initial position of the virtual target in the parameterized path
-        :param kz: The gain for the control law (how much importance to give to the desired velocity to follow)
+        :param Ka: The gain for the control law (how much importance to give to the sincronization
         """
 
         # Initialized the Super Class with the initial state for the virtual target

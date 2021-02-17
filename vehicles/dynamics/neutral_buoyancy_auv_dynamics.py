@@ -27,6 +27,9 @@ from dsorlib.vehicles.state.state import State
 
 class NeutralBuoyancyAUVDynamics(AbstractAUVDynamics):
 
+    def compute_gravitational_forces(self, state: State):
+        return zeros(6)
+
     def __init__(self,
                  m: float,  # Mass
                  inertia_tensor: array,  # The inertia tensor (a vector of 9 elements)
